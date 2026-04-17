@@ -24,7 +24,7 @@ class ChatSseController(
 
     @PostMapping("/sse", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun sse(@RequestBody request: ChatRequest): Flow<ServerSentEvent<String>> {
-        val result = streamChat.stream(request.prompt, request.sessionId)
+//        val result = streamChat.stream(request.prompt, request.sessionId)
         return flow {
             emit(ServerSentEvent.builder(result.sessionId).event("session").build())
             result.tokens.collect { token ->
