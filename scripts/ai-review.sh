@@ -4,6 +4,8 @@
 
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.1:8b}"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+REVIEW_FILE="${PROJECT_ROOT}/.ai-review.md"
 
 # staged diff 가져오기 (커밋 대상만)
 DIFF=$(git diff --cached -- '*.kt' '*.kts' '*.yml' '*.yaml')
@@ -51,6 +53,7 @@ if [ -z "$RESPONSE" ]; then
   exit 0
 fi
 
+# 터미널 출력
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🤖 AI Review (${OLLAMA_MODEL})"
@@ -58,6 +61,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "$RESPONSE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+
+# 파일 저장 (.ai-review.md)
+TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+STAGED_FILES=$(git diff --cached --name-only -- '*.kt' '*.kts' '*.yml' '*.yaml')
+
+cat > "$REVIEW_FILE" << REVIEW_EOF
+# AI Code Review
+
+- **일시**: ${TIMESTAMP}
+- **모델**: ${OLLAMA_MODEL}
+- **변경 파일**:
+$(echo "$STAGED_FILES" | sed 's/^/  - /')
+
+## 리뷰 결과
+
+${RESPONSE}
+REVIEW_EOF
+
+echo "📄 리뷰 결과 저장: .ai-review.md"
 
 # 심각한 이슈 키워드 감지
 if echo "$RESPONSE" | grep -qi "보안\|취약\|security\|injection\|버그\|bug\|critical"; then

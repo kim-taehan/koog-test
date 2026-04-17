@@ -51,3 +51,6 @@ bin/
 
 ### JVM crash logs ###
 hs_err_pid*.log
+
+### AI Review ###
+.ai-review.md
