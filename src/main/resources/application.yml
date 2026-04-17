@@ -1,0 +1,17 @@
+spring:
+  config:
+    import: optional:file:.env.properties
+
+ollama:
+  base-url: http://localhost:11434
+  # 설치된 다른 모델로 바꾸려면 여기만 수정 (코드 변경 없음)
+  # 예: qwen3:14b (한국어 ↑), qwen3.5:27b (품질 ↑, 속도 ↓)
+  model: llama3.1:8b
+
+chat:
+  max-recent-turns: 5
+  summarize-interval: 3
+
+tavily:
+  api-key: ${TAVILY_API_KEY:}
+  # .env.properties 에 TAVILY_API_KEY=tvly-xxx 로 설정하면 자동으로 읽음
