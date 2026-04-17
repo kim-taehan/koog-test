@@ -3,6 +3,8 @@ plugins {
     kotlin("plugin.spring") version "2.2.0"
     id("org.springframework.boot") version "3.4.1"
     id("io.spring.dependency-management") version "1.1.6"
+    id("org.sonarqube") version "6.0.1.5171"
+    id("jacoco")
 }
 
 group = "develop.x"
@@ -61,6 +63,26 @@ configurations.all {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+    }
+}
+
+sonarqube {
+    properties {
+        property("sonar.projectKey", "kim-taehan_koog-test")
+        property("sonar.organization", "kim-taehan")
+        property("sonar.host.url", "https://sonarcloud.io")
+        property("sonar.sources", "src/main/kotlin")
+        property("sonar.tests", "src/test/kotlin")
+        property("sonar.kotlin.detekt.reportPaths", "")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+    }
 }
 
 kotlin {
