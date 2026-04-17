@@ -24,21 +24,47 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Ollama (skip if external URL)
+      # --- 러너 로컬 Ollama (외부 URL 미설정 시) ---
+
+      - name: Cache Ollama binary
+        if: ${{ !vars.OLLAMA_BASE_URL }}
+        uses: actions/cache@v4
+        id: cache-ollama
+        with:
+          path: /usr/local/bin/ollama
+          key: ollama-binary-linux
+
+      - name: Install Ollama
+        if: ${{ !vars.OLLAMA_BASE_URL && steps.cache-ollama.outputs.cache-hit != 'true' }}
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Cache Ollama model
+        if: ${{ !vars.OLLAMA_BASE_URL }}
+        uses: actions/cache@v4
+        id: cache-model
+        with:
+          path: ~/.ollama/models
+          key: ollama-model-${{ env.OLLAMA_MODEL }}
+
+      - name: Start Ollama and pull model
         if: ${{ !vars.OLLAMA_BASE_URL }}
         run: |
-          curl -fsSL https://ollama.com/install.sh | sh
           ollama serve &
-          # 서버 기동 대기
           for i in $(seq 1 30); do
             curl -s http://localhost:11434/api/tags > /dev/null 2>&1 && break
             sleep 1
           done
           echo "Ollama server ready"
-          ollama pull ${{ env.OLLAMA_MODEL }}
-          echo "Model ${{ env.OLLAMA_MODEL }} pulled"
+          if [ "${{ steps.cache-model.outputs.cache-hit }}" != "true" ]; then
+            echo "Pulling model ${{ env.OLLAMA_MODEL }}..."
+            ollama pull ${{ env.OLLAMA_MODEL }}
+          else
+            echo "Model ${{ env.OLLAMA_MODEL }} loaded from cache"
+          fi
 
-      - name: Wait for external Ollama (if configured)
+      # --- 외부 Ollama 서버 (URL 설정 시) ---
+
+      - name: Wait for external Ollama
         if: ${{ vars.OLLAMA_BASE_URL }}
         run: |
           echo "Using external Ollama: ${{ env.OLLAMA_BASE_URL }}"
@@ -48,6 +74,8 @@ jobs:
             sleep 2
           done
 
+      # --- 코드 리뷰 ---
+
       - name: Get PR diff
         id: diff
         run: |
@@ -55,7 +83,6 @@ jobs:
           DIFF_SIZE=$(wc -c < /tmp/pr_diff.txt)
           echo "diff_size=$DIFF_SIZE" >> "$GITHUB_OUTPUT"
           echo "PR diff size: $DIFF_SIZE bytes"
-          # 너무 크면 truncate (Ollama context window 보호)
           if [ "$DIFF_SIZE" -gt 30000 ]; then
             head -c 30000 /tmp/pr_diff.txt > /tmp/pr_diff_trimmed.txt
             echo -e "\n\n... (diff truncated, showing first 30KB)" >> /tmp/pr_diff_trimmed.txt
@@ -89,18 +116,15 @@ jobs:
           PROMPT_EOF
           )
 
-          # Combine prompt + diff
           FULL_PROMPT="${PROMPT}
           ${DIFF}
           \`\`\`"
 
-          # Ollama API 호출
           RESPONSE=$(curl -s --max-time 300 -X POST "${{ env.OLLAMA_BASE_URL }}/api/generate" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg model "${{ env.OLLAMA_MODEL }}" --arg prompt "$FULL_PROMPT" '{model: $model, prompt: $prompt, stream: false}')" \
             | jq -r '.response // "리뷰 생성에 실패했습니다."')
 
-          # 결과 저장
           echo "$RESPONSE" > /tmp/review_result.txt
           echo "Review generated: $(wc -c < /tmp/review_result.txt) bytes"
 
@@ -115,7 +139,6 @@ jobs:
             const model = process.env.OLLAMA_MODEL;
             const body = `## 🤖 AI Code Review (${model})\n\n${review}\n\n---\n*Powered by Ollama (${model})*`;
 
-            // 기존 봇 코멘트가 있으면 업데이트
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
