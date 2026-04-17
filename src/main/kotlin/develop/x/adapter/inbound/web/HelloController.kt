@@ -8,6 +8,12 @@ class HelloController {
     @GetMapping("/")
     fun hello(): String = """
         Hello, Spring WebFlux + Koog/Ollama!
-        Try: curl -N 'http://localhost:8080/sse?prompt=Explain%20Kotlin%20coroutines%20briefly'
+        Try: curl -N -X POST http://localhost:8080/sse -H 'Content-Type: application/json' -d '{"prompt":"안녕하세요"}'
     """.trimIndent()
+
+    @GetMapping("/health")
+    fun health(): Map<String, String> = mapOf(
+        "status" to "UP",
+        "service" to "koog-test",
+    )
 }
