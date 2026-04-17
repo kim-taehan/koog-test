@@ -18,7 +18,7 @@ class ChatSseController(
     private val streamChat: StreamChatUseCase,
 ) {
     data class ChatRequest(
-        val prompt: String,
+//        val prompt: String,
         val sessionId: String? = null,
     )
 
