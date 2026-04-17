@@ -1,0 +1,143 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # 로컬(러너) Ollama 사용 시 기본값. 외부 서버로 전환 시 GitHub Variables에서 설정.
+  OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'http://localhost:11434' }}
+  OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'qwen2.5-coder:7b' }}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Ollama (skip if external URL)
+        if: ${{ !vars.OLLAMA_BASE_URL }}
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          # 서버 기동 대기
+          for i in $(seq 1 30); do
+            curl -s http://localhost:11434/api/tags > /dev/null 2>&1 && break
+            sleep 1
+          done
+          echo "Ollama server ready"
+          ollama pull ${{ env.OLLAMA_MODEL }}
+          echo "Model ${{ env.OLLAMA_MODEL }} pulled"
+
+      - name: Wait for external Ollama (if configured)
+        if: ${{ vars.OLLAMA_BASE_URL }}
+        run: |
+          echo "Using external Ollama: ${{ env.OLLAMA_BASE_URL }}"
+          for i in $(seq 1 10); do
+            curl -s "${{ env.OLLAMA_BASE_URL }}/api/tags" > /dev/null 2>&1 && break
+            echo "Waiting for Ollama server... ($i)"
+            sleep 2
+          done
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD -- '*.kt' '*.kts' '*.yml' '*.yaml' > /tmp/pr_diff.txt
+          DIFF_SIZE=$(wc -c < /tmp/pr_diff.txt)
+          echo "diff_size=$DIFF_SIZE" >> "$GITHUB_OUTPUT"
+          echo "PR diff size: $DIFF_SIZE bytes"
+          # 너무 크면 truncate (Ollama context window 보호)
+          if [ "$DIFF_SIZE" -gt 30000 ]; then
+            head -c 30000 /tmp/pr_diff.txt > /tmp/pr_diff_trimmed.txt
+            echo -e "\n\n... (diff truncated, showing first 30KB)" >> /tmp/pr_diff_trimmed.txt
+            mv /tmp/pr_diff_trimmed.txt /tmp/pr_diff.txt
+            echo "Diff truncated to 30KB"
+          fi
+
+      - name: Skip if no changes
+        if: steps.diff.outputs.diff_size == '0'
+        run: echo "No relevant file changes, skipping review"
+
+      - name: AI Code Review
+        if: steps.diff.outputs.diff_size != '0'
+        run: |
+          DIFF=$(cat /tmp/pr_diff.txt)
+
+          PROMPT=$(cat <<'PROMPT_EOF'
+          You are a senior Kotlin developer reviewing a pull request.
+          The project uses Spring Boot 3.4 (WebFlux), Kotlin 2.2, and hexagonal architecture.
+
+          Review the following diff and provide:
+          1. **Summary**: What this PR does (2-3 sentences)
+          2. **Positive**: Good practices found
+          3. **Issues**: Bugs, security concerns, or logic errors (if any)
+          4. **Suggestions**: Improvements for readability, performance, or architecture
+          5. **Architecture**: Does it follow hexagonal architecture rules? (domain has no framework deps, adapters implement ports, dependency arrows point inward)
+
+          Be concise. Use Korean for the review. Only comment on meaningful issues, not style nitpicks.
+
+          ```diff
+          PROMPT_EOF
+          )
+
+          # Combine prompt + diff
+          FULL_PROMPT="${PROMPT}
+          ${DIFF}
+          \`\`\`"
+
+          # Ollama API 호출
+          RESPONSE=$(curl -s --max-time 300 -X POST "${{ env.OLLAMA_BASE_URL }}/api/generate" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg model "${{ env.OLLAMA_MODEL }}" --arg prompt "$FULL_PROMPT" '{model: $model, prompt: $prompt, stream: false}')" \
+            | jq -r '.response // "리뷰 생성에 실패했습니다."')
+
+          # 결과 저장
+          echo "$RESPONSE" > /tmp/review_result.txt
+          echo "Review generated: $(wc -c < /tmp/review_result.txt) bytes"
+
+      - name: Post review comment
+        if: steps.diff.outputs.diff_size != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('/tmp/review_result.txt', 'utf8');
+
+            const model = process.env.OLLAMA_MODEL;
+            const body = `## 🤖 AI Code Review (${model})\n\n${review}\n\n---\n*Powered by Ollama (${model})*`;
+
+            // 기존 봇 코멘트가 있으면 업데이트
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('AI Code Review')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
