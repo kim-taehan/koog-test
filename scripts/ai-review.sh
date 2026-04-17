@@ -81,6 +81,13 @@ REVIEW_EOF
 
 echo "📄 리뷰 결과 저장: .ai-review.md"
 
+# IntelliJ에서 자동으로 리뷰 파일 열기 (GUI 커밋 시 결과 확인용)
+if command -v idea > /dev/null 2>&1; then
+  idea "$REVIEW_FILE" &
+elif [ -d "/Applications/IntelliJ IDEA.app" ]; then
+  open -a "IntelliJ IDEA" "$REVIEW_FILE" &
+fi
+
 # 심각한 이슈 키워드 감지
 if echo "$RESPONSE" | grep -qi "보안\|취약\|security\|injection\|버그\|bug\|critical"; then
   echo "⚠️  잠재적 이슈가 감지되었습니다. 커밋을 계속하시겠습니까? (y/N)"
