@@ -12,8 +12,9 @@ class HelloController {
     """.trimIndent()
 
     @GetMapping("/health")
-    fun health(): Map<String, String> = mapOf(
+    fun health(): Map<String, Any> = mapOf(
         "status" to "UP",
         "service" to "koog-test",
+        "version" to "1.0",
     )
 }
