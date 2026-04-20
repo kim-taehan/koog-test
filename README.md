@@ -406,6 +406,7 @@ curl -N -X POST http://localhost:8080/sse \
 
 - [멀티턴 요약 전략 테스트 결과](docs/multi-turn-test-result.md) — 8턴 대화를 통한 히스토리 유지 및 요약 트리거 검증 (2026-04-17)
 - [Tool Calling (Web Search) 테스트 결과](docs/tool-calling-test-result.md) — Tavily 웹 검색 tool calling 하이브리드 방식 검증 (2026-04-17)
+- [Koog 스트리밍 Tool Call 분석](docs/koog-streaming-tool-call-analysis.md) — Koog 0.8.0 executeStreaming() tool call 미동작 원인 분석 및 하이브리드 방식 개선 (2026-04-20)
 
 ## 프레임워크 비교
 
