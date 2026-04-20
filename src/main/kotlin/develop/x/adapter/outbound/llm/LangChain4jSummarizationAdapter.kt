@@ -1,25 +1,22 @@
 package develop.x.adapter.outbound.llm
 
-import ai.koog.prompt.dsl.prompt as koogPrompt
-import ai.koog.prompt.executor.ollama.client.OllamaClient
-import ai.koog.prompt.llm.LLModel
+import dev.langchain4j.data.message.UserMessage
+import dev.langchain4j.model.chat.ChatModel
+import dev.langchain4j.model.chat.request.ChatRequest
 import develop.x.application.port.outbound.SummarizationPort
 import develop.x.domain.ChatMessage
-import kotlin.time.ExperimentalTime
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 
 @Component
-@Profile("koog")
-class KoogOllamaSummarizationAdapter(
-    private val client: OllamaClient,
-    private val model: LLModel,
+@Profile("langchain4j")
+class LangChain4jSummarizationAdapter(
+    private val chatModel: ChatModel,
 ) : SummarizationPort {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    @OptIn(ExperimentalTime::class)
     override suspend fun summarize(existingSummary: String?, messages: List<ChatMessage>): String {
         val conversationText = messages.joinToString("\n") { "${it.role}: ${it.content}" }
 
@@ -32,13 +29,12 @@ class KoogOllamaSummarizationAdapter(
             append("New conversation to incorporate:\n$conversationText")
         }
 
-        val request = koogPrompt("summarize") {
-            user(promptText)
-        }
-
-        log.info("→ Ollama summarize: model={}, messages={}", model.id, messages.size)
-        val responses = client.execute(prompt = request, model = model, tools = emptyList())
-        val summary = responses.joinToString("") { it.content }
+        log.info("→ LangChain4j summarize: messages={}", messages.size)
+        val request = ChatRequest.builder()
+            .messages(listOf(UserMessage.from(promptText)))
+            .build()
+        val response = chatModel.chat(request)
+        val summary = response.aiMessage().text()
         log.info("← summary generated: {} chars", summary.length)
         return summary
     }

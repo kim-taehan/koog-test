@@ -18,6 +18,7 @@ repositories {
 
 val koogVersion = "0.8.0"
 val coroutinesVersion = "1.10.2"  // Kotlin 2.2 의 debug metadata v2 를 이해하는 최소 버전대
+val langchain4jVersion = "1.13.0"
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -37,6 +38,10 @@ dependencies {
     implementation("ai.koog:prompt-model:$koogVersion")
     // Koog 내부 Ktor HttpClient 가 ServiceLoader 로 엔진을 찾으므로 하나 제공해야 함
     runtimeOnly("io.ktor:ktor-client-cio:3.2.2")
+
+    // LangChain4j — Ollama client (프로파일 langchain4j 에서 사용)
+    implementation("dev.langchain4j:langchain4j-ollama:$langchain4jVersion")
+    implementation("dev.langchain4j:langchain4j:$langchain4jVersion")
 
     // Swagger UI (springdoc-openapi for WebFlux)
     implementation("org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.6")

@@ -23,9 +23,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Component
 
 @Component
+@Profile("koog")
 class KoogOllamaTokenStreamAdapter(
     private val client: OllamaClient,
     private val model: LLModel,

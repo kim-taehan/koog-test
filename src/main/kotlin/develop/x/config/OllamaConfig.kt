@@ -8,12 +8,14 @@ import kotlin.time.ExperimentalTime
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Profile
 
 /**
  * Ollama 인프라 와이어링. base-url / model 은 application.yml 또는 ENV 로 오버라이드.
  * destroyMethod="close" 로 OllamaClient 의 Ktor HttpClient lifecycle 관리.
  */
 @Configuration
+@Profile("koog")
 class OllamaConfig {
 
     @Bean(destroyMethod = "close")
